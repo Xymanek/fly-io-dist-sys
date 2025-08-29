@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -27,6 +28,15 @@ func (kafkaNode *KafkaNode) registerListCommittedOffsetsHandler() {
 		for _, key := range request.Keys {
 			committedOffset, err := kafkaNode.readCommittedOffset(key)
 			if err != nil {
+				var rpcError *maelstrom.RPCError
+				ok := errors.As(err, &rpcError)
+
+				// From requirements:
+				// Keys that do not exist on the node can be omitted.
+				if ok && rpcError.Code == maelstrom.KeyDoesNotExist {
+					continue
+				}
+
 				return err
 			}
 
