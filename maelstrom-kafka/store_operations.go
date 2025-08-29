@@ -37,7 +37,7 @@ func attemptAllocateNextMessageIndex(store *maelstrom.KV, storeKey string) (int,
 		ok := errors.As(err, &rpcError)
 
 		if ok && rpcError.Code == maelstrom.KeyDoesNotExist {
-			log.Println("Attempting to allocate the first index for log key ", storeKey)
+			log.Println("Attempting to allocate the first index for store key ", storeKey)
 			return 1, store.CompareAndSwap(ctx, storeKey, -99, 1, true)
 		}
 
