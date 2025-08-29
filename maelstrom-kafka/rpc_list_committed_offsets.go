@@ -25,7 +25,12 @@ func (kafkaNode *KafkaNode) registerListCommittedOffsetsHandler() {
 
 		offsets := make(map[string]int)
 		for _, key := range request.Keys {
-			offsets[key] = kafkaNode.getOrCreateLog(key).acknowledgedOffset
+			committedOffset, err := kafkaNode.readCommittedOffset(key)
+			if err != nil {
+				return err
+			}
+
+			offsets[key] = committedOffset
 		}
 
 		return kafkaNode.maelstromNode.Reply(msg, listCommittedOffsetsResponse{

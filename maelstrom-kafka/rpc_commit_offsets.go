@@ -19,20 +19,13 @@ func (kafkaNode *KafkaNode) registerCommitOffsetsHandler() {
 		}
 
 		for key, offset := range request.Offsets {
-			kafkaNode.commitMessagesInLogWithOffset(key, offset)
+			if err := kafkaNode.writeCommittedOffset(key, offset); err != nil {
+				return err
+			}
 		}
 
 		return kafkaNode.maelstromNode.Reply(msg, basicResponse{
 			Type: "commit_offsets_ok",
 		})
 	})
-}
-
-func (kafkaNode *KafkaNode) commitMessagesInLogWithOffset(key string, offset int) {
-	log := kafkaNode.getOrCreateLog(key)
-
-	log.acknowledgedOffsetLock.Lock()
-	defer log.acknowledgedOffsetLock.Unlock()
-
-	log.acknowledgedOffset = max(log.acknowledgedOffset, offset)
 }

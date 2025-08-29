@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -28,7 +29,12 @@ func (kafkaNode *KafkaNode) registerPollHandler() {
 		messages := make(map[string][][]int)
 
 		for key, offset := range request.Offsets {
-			messages[key] = kafkaNode.collectMessagesFromLogWithOffset(key, offset)
+			keyMessages, err := kafkaNode.collectMessagesFromLogWithOffset(key, offset)
+			if err != nil {
+				return err
+			}
+
+			messages[key] = keyMessages
 		}
 
 		return kafkaNode.maelstromNode.Reply(msg, pollResponse{
@@ -38,18 +44,31 @@ func (kafkaNode *KafkaNode) registerPollHandler() {
 	})
 }
 
-func (kafkaNode *KafkaNode) collectMessagesFromLogWithOffset(key string, offset int) [][]int {
-	log := kafkaNode.getOrCreateLog(key)
-
-	log.messagesLock.Lock()
-	defer log.messagesLock.Unlock()
-
-	keyEntries := make([][]int, 0)
-	for i, message := range log.messages {
-		if i >= offset {
-			keyEntries = append(keyEntries, []int{i, message})
-		}
+func (kafkaNode *KafkaNode) collectMessagesFromLogWithOffset(key string, offset int) ([][]int, error) {
+	lastOffset, err := kafkaNode.readLastAllocatedIndex(key)
+	if err != nil {
+		return nil, err
 	}
 
-	return keyEntries
+	keyEntries := make([][]int, 0)
+	for index := offset; index < lastOffset; index++ {
+		message, err := kafkaNode.readMessage(key, index)
+
+		if err != nil {
+			var rpcError *maelstrom.RPCError
+			ok := errors.As(err, &rpcError)
+
+			// From requirements:
+			// These offsets can be sparse in that not every offset must contain a message.
+			if ok && rpcError.Code == maelstrom.KeyDoesNotExist {
+				continue
+			}
+
+			return nil, err
+		}
+
+		keyEntries = append(keyEntries, []int{index, message})
+	}
+
+	return keyEntries, nil
 }

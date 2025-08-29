@@ -24,16 +24,14 @@ func (kafkaNode *KafkaNode) registerSendHandler() {
 			return err
 		}
 
-		log := kafkaNode.getOrCreateLog(request.Key)
-
-		log.messagesLock.Lock()
-		defer log.messagesLock.Unlock()
-
-		log.messages = append(log.messages, request.Message)
+		messageIndex := kafkaNode.allocateNextMessageIndex(request.Key)
+		if err := kafkaNode.writeMessage(request.Key, messageIndex, request.Message); err != nil {
+			return err
+		}
 
 		return kafkaNode.maelstromNode.Reply(msg, sendResponse{
 			Type:   "send_ok",
-			Offset: len(log.messages) - 1,
+			Offset: messageIndex,
 		})
 	})
 }

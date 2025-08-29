@@ -11,7 +11,7 @@ func main() {
 
 	kafkaNode := KafkaNode{
 		maelstromNode: n,
-		logs:          make(map[string]*KafkaLog),
+		store:         maelstrom.NewLinKV(n),
 	}
 
 	kafkaNode.registerSendHandler()
